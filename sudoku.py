@@ -1,7 +1,7 @@
 #!/usr/bin/python
 
 """
-sudoku puzzle solver v1.2
+sudoku puzzle solver
 """
 
 def cell():
@@ -30,7 +30,11 @@ def elim_poss(board, x, y, val):
 
 def pretty_print(b):
 	for i in range(9):
-		print(b[i*9:i*9+9])
+		line = [ str(tuple(x)[0]) for x in b[i*9:i*9+9] ]
+		line = ' '.join(line)
+		print(line[0:5] + " |" + line[5:11] + " |" + line[11:])
+		if i != 0 and i != 8 and (i+1) % 3 == 0:
+			print("-" * 21)
 
 def solve(b):
 	while True:
@@ -58,7 +62,7 @@ def solve(b):
 
 b = new_board()
 idx = 0
-with open("test_puzz_evil.txt", 'r') as infile:
+with open("test_puzz_hard.txt", 'r') as infile:
 	for line in infile.readlines():
 		for j, item in enumerate(line.strip().split(' ')):
 			if item != '-':
