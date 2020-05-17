@@ -1,11 +1,7 @@
 #!/usr/bin/python
 
 """
-sudoku puzzle solver v1.1
-
-currently solves easy and medium puzzles
-requires further work for hard puzzles
-
+sudoku puzzle solver v1.2
 """
 
 def cell():
@@ -57,11 +53,12 @@ def solve(b):
 					c = [ set(x) for x in b ]
 					set_val(c, i%9, i//9, v)
 					solve(c)
+					b[i].discard(v)
 			return # no solution found
 
 b = new_board()
 idx = 0
-with open("test_puzz_med.txt", 'r') as infile:
+with open("test_puzz_evil.txt", 'r') as infile:
 	for line in infile.readlines():
 		for j, item in enumerate(line.strip().split(' ')):
 			if item != '-':
