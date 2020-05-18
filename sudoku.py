@@ -4,6 +4,8 @@
 sudoku puzzle solver
 """
 
+import sys
+
 def cell():
 	return set([ x for x in range(1,10) ])
 
@@ -32,7 +34,7 @@ def pretty_print(b):
 	for i in range(9):
 		line = [ str(tuple(x)[0]) for x in b[i*9:i*9+9] ]
 		line = ' '.join(line)
-		print(line[0:5] + " |" + line[5:11] + " |" + line[11:])
+		print(line[0:5] + " | " + line[6:11] + " |" + line[11:])
 		if i != 0 and i != 8 and (i+1) % 3 == 0:
 			print("-" * 21)
 
@@ -60,13 +62,19 @@ def solve(b):
 					b[i].discard(v)
 			return # no solution found
 
-b = new_board()
-idx = 0
-with open("test_puzz_hard.txt", 'r') as infile:
-	for line in infile.readlines():
-		for j, item in enumerate(line.strip().split(' ')):
-			if item != '-':
-				set_val(b, j, idx, int(item))
-		idx += 1
+if __name__ == "__main__":
 
-solve(b)
+	if len(sys.argv) != 2:
+		print("Usage: python " + sys.argv[0] + " puzzle_name.txt")
+		exit()
+
+	b = new_board()
+	idx = 0
+	with open(sys.argv[1], 'r') as infile:
+		for line in infile.readlines():
+			for j, item in enumerate(line.strip().split(' ')):
+				if item != '-':
+					set_val(b, j, idx, int(item))
+			idx += 1
+	solve(b)
+	print("No solutions found.")
