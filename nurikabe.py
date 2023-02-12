@@ -7,42 +7,43 @@ Rules
 4. The black cells are linked to be a continuous wall.
 5. Black cells cannot be linked to be 2×2 square or larger.
 
-Slow, but will complete 10x10 examples.
+Can complete 10x10 in a around a minute with pypy3.  Still too slow for 12x12 and larger.
 
 """
 
 # A puzzle is its dimensions (x,y) and islands
 # islands shown as (x,y,size) with a zero index
 
-dims = (5,5)
-islands = [ (4,0,1), (0,1,1), (0,3,5), (4,3,2) ]
+#dims = (5,5)
+#islands = [ (4,0,1), (0,1,1), (0,3,5), (4,3,2) ]
 
-dims = (7,7)
-islands = [ (6,1,3), (4,1,3), (3,2,3), (1,3,3), (1,5,5) ]
+#dims = (7,7)
+#islands = [ (6,1,3), (4,1,3), (3,2,3), (1,3,3), (1,5,5) ]
 
-dims = (7,7)
-islands = [ (4,0,3), (2,1,2), (3,2,3), (6,3,1), (3,4,4), (4,5,2), (2,6,2) ]
+#dims = (7,7)
+#islands = [ (4,0,3), (2,1,2), (3,2,3), (6,3,1), (3,4,4), (4,5,2), (2,6,2) ]
 
-dims = (10,10)
-islands = [ (7,0,1), (1,1,2), (5,1,3), (8,1,8), (6,4,4), (4,5,4), (3,6,1), (5,7,3), (2,7,5), (3,8,2), (6,9,1), (2,9,3) ]
+#dims = (10,10)
+#islands = [ (7,0,1), (1,1,2), (5,1,3), (8,1,8), (6,4,4), (4,5,4), (3,6,1), (5,7,3), (2,7,5), (3,8,2), (6,9,1), (2,9,3) ]
 
 #dims = (10,10)
 #islands = [ (7,0,5), (6,1,8), (7,2,6), (2,2,2), (0,2,2), (1,3,5), (8,6,1), (9,7,4), (7,7,3), (2,7,2), (3,8,2), (2,9,2), (6,9,1) ]
 
-# geoms holds templates of all islands shapes of size 'N'
-# (with no holes) as a set of tuples of offset points (x,y)
-geoms = dict()
+#dims = (12,12)
+#islands = [ (2,0,5), (5,1,1), (3,1,4), (7,2,5), (8,3,4), (1,4,8), (6,5,5), (3,5,3), (9,6,3), (7,6,1), (5,6,6), (10,7,1), (3,8,1), (4,9,2), (8,10,1), (6,10,2), (9,11,4) ]
+
+#dims = (15,15)
+#islands = [ (0,0,1), (8,0,1), (2,1,1), (7,1,1), (9,1,1), (13,1,1), (5,2,10), (11,2,2), (8,3,9), (12,3,2), (7,4,1), (8,5,1), (5,5,2), (2,5,2), (0,5,2), (12,7,1), (10,7,2), (4,7,2), (2,7,2), (14,8,1), (12,9,2), (9,9,2), (6,9,4), (7,10,3), (10,11,4), (6,11,10), (2,11,2), (9,12,3), (3,12,2), (12,13,2), (7,13,1), (5,13,1), (1,13,1), (6,14,1) ]
 
 # allow finding size of an island at a point (x,y)
 island_size_at_point = dict()
 for x,y,s in islands:
 	island_size_at_point[(x,y)] = s
 
-# The number of black squares needed is the puzzle
-# area minus the size of the islands
+# The number of black squares needed is the puzzle area minus the size of the islands
 blacks_target_size = dims[0]*dims[1] - sum( [ s for x,y,s in islands ] )
 whites_target_size = sum( [ s for x,y,s in islands ] )
-cover_set = { (x,y) for x in range(dims[0]) for y in range(dims[1]) }
+cover_set = { (x,y) for x in range(dims[0]) for y in range(dims[1]) } # all squares on grid
 
 # islands cannot overlap with a known black square, and will not overlap with another island
 # compute squares that must be black 
@@ -62,7 +63,7 @@ for x in range(dims[0]):
 				blacks.add((x,y))
 
 # print out the solution board
-# just provide the cells that are white
+# provided the cells that are white
 def pretty_print(whites):
 	black_tile = '#'
 	for y in range(dims[1]):
@@ -76,8 +77,8 @@ def pretty_print(whites):
 		print()
 
 # for a given list of points, determine if there is a 'hole'
-# for an (x,y) location that is surrounded on 4 sides by points
-# in the list, but is not in the list itself
+# (an (x,y) location that is surrounded on 4 sides by points
+# in the list, but is not in the list itself)
 def has_hole(points):
 	xs = { p[0] for p in points }
 	ys = { p[1] for p in points }
@@ -113,38 +114,33 @@ def verify_ocean(blacks):
 			return False
 	return True
 
-# for a given size, find all offsets from a point that
-# define an island of that size
-def gen_offsets(size):
-	global geoms
-	if size in geoms or size <= 0:
-		return
-	if size == 1:
-		geoms[1] = {((0,0),)}
-		return
-	if size - 1 not in geoms:
-		gen_offsets(size-1)
-	q = [ x for x in geoms[size-1] ]
+# for an island of a size, at a given point, generate a set of its possible
+# shapes, which will exclude areas it cannot occupy based on size of the
+# board, or known black cells or exclusion stand-offs to other islands.
+def gen_poss_island_shapes(island,exclusions):
+	x,y,size = island
+	q = [ ({(x,y)},set()) ]
 	offsets = set()
 	while len(q) > 0:
-		shape = q.pop(0)
+		shape,explored = q.pop(0)
 		if len(shape) == size and not has_hole(shape):
 			shape = tuple(sorted(shape))
 			offsets.add(shape)
 		elif len(shape) < size:
-			for x,y in shape:
+			for i,j in shape-explored:
 				for dx,dy in ((-1,0),(1,0),(0,1),(0,-1)):
-					if (x+dx,y+dy) not in shape:
-						next_shape = [ x for x in shape ] + [ (x+dx,y+dy) ]
-						q.append(next_shape)
-	geoms[size] = offsets
+					if (i+dx,j+dy) not in shape and i+dx >= 0 and i+dx < dims[0] and j+dy >= 0 and j+dy < dims[1] and (i+dx,j+dy) not in exclusions:
+						next_shape = shape.copy()
+						next_shape.add((i+dx,j+dy))
+						q.append((next_shape,explored.union(set((i,j)))))
+	return offsets
 
 # islands must be the size given
 # an island must fit on the board
 # an island must not overlap another island
 # an island must not occupy the same square as a known black tile
 
-gen_offsets(max(island_size_at_point.values()))
+#gen_offsets(max(island_size_at_point.values()))
 
 # apply shape offsets for each island anchor point
 # but do not keep islands that would occupy a known black square
@@ -155,14 +151,8 @@ for x,y,s in islands:
 	other_islands_points = [ x for x in island_size_at_point.keys() ]
 	other_islands_points.remove((x,y))
 	orthogonal_exclusion_zone = [ (x+dx,y+dy) for dx,dy in ((0,0),(-1,0),(1,0),(0,1),(0,-1)) for x,y in other_islands_points ]
-	for offset_map in geoms[s]:
-		trial_island = []
-		for dx,dy in offset_map:
-			trial_island.append((x+dx,y+dy))
-		if not any ( x < 0 or x >= dims[0] or y < 0 or y >= dims[1] for x,y in trial_island):
-			if not any( p in blacks for p in trial_island):
-				if not any( p in orthogonal_exclusion_zone for p in trial_island):
-					trial_islands.append(trial_island)
+	for entry in gen_poss_island_shapes((x,y,s),blacks.union(orthogonal_exclusion_zone)):
+		trial_islands.append(entry)
 	mapped_islands.append(trial_islands)
 
 # remove islands from consideration that would overlap another island
@@ -199,12 +189,13 @@ def build_trial_solution(mapped_islands,whites=set(),idx=0):
 					trial_whites = trial_whites.union(points)
 					yield from build_trial_solution(next_map,trial_whites,idx+1)
 
-mapped_islands.sort(key=lambda x: len(x),reverse=True)
-print( [ len(mapped_islands[i]) for i in range(len(mapped_islands)) ] )
+#mapped_islands.sort(key=lambda x: len(x))
+print( [ len(island) for island in mapped_islands ] )
 
 for whites in build_trial_solution(mapped_islands):
 	if len(whites) == whites_target_size:
 		trial_blacks = cover_set - whites
 		if verify_ocean(trial_blacks) and all( find_island_size(p,trial_blacks) == island_size_at_point[p] for p in island_size_at_point.keys() ):
 			pretty_print(whites)
+			break # assume unique solution, and break
 
