@@ -17,8 +17,8 @@ Can complete 10x10 in a around a minute with pypy3.  Still too slow for 12x12 an
 #dims = (5,5)
 #islands = [ (4,0,1), (0,1,1), (0,3,5), (4,3,2) ]
 
-#dims = (7,7)
-#islands = [ (6,1,3), (4,1,3), (3,2,3), (1,3,3), (1,5,5) ]
+dims = (7,7)
+islands = [ (6,1,3), (4,1,3), (3,2,3), (1,3,3), (1,5,5) ]
 
 #dims = (7,7)
 #islands = [ (4,0,3), (2,1,2), (3,2,3), (6,3,1), (3,4,4), (4,5,2), (2,6,2) ]
@@ -140,8 +140,6 @@ def gen_poss_island_shapes(island,exclusions):
 # an island must not overlap another island
 # an island must not occupy the same square as a known black tile
 
-#gen_offsets(max(island_size_at_point.values()))
-
 # apply shape offsets for each island anchor point
 # but do not keep islands that would occupy a known black square
 # or be off the edge of the board
@@ -150,24 +148,25 @@ for x,y,s in islands:
 	trial_islands = []
 	other_islands_points = [ x for x in island_size_at_point.keys() ]
 	other_islands_points.remove((x,y))
-	orthogonal_exclusion_zone = [ (x+dx,y+dy) for dx,dy in ((0,0),(-1,0),(1,0),(0,1),(0,-1)) for x,y in other_islands_points ]
+	orthogonal_exclusion_zone = { (x+dx,y+dy) for dx,dy in ((0,0),(-1,0),(1,0),(0,1),(0,-1)) for x,y in other_islands_points }
 	for entry in gen_poss_island_shapes((x,y,s),blacks.union(orthogonal_exclusion_zone)):
 		trial_islands.append(entry)
 	mapped_islands.append(trial_islands)
 
 # remove islands from consideration that would overlap another island
 # on the map.  if there is only one option for an island shape, then
-# anything that touches it must be incorrect.
+# anything that touches it or is orthogonal to it must be incorrect.
 mapped_size = -1
 while mapped_size != sum( [ len(x) for x in mapped_islands ] ):
 	mapped_size = sum( [ len(x) for x in mapped_islands ] )
 	for idx,island_set_a in enumerate(mapped_islands):
 		if len(island_set_a) == 1:
 			for entry_a in island_set_a:
+				orthogonal_exclusion_zone = { (x+dx,y+dy) for dx,dy in ((0,0),(-1,0),(1,0),(0,1),(0,-1)) for x,y in entry_a }
 				for j in range(len(mapped_islands)):
 					if idx != j:
 						for entry_b in mapped_islands[j]:
-							if len(set(entry_a).intersection(set(entry_b))) > 0:
+							if len(set(orthogonal_exclusion_zone).intersection(set(entry_b))) > 0:
 								mapped_islands[j].remove(entry_b)
 
 def build_trial_solution(mapped_islands,whites=set(),idx=0):
@@ -189,7 +188,7 @@ def build_trial_solution(mapped_islands,whites=set(),idx=0):
 					trial_whites = trial_whites.union(points)
 					yield from build_trial_solution(next_map,trial_whites,idx+1)
 
-#mapped_islands.sort(key=lambda x: len(x))
+#mapped_islands.sort(key=lambda x: len(x)) # sorting does not appear to improve the speed of pruning
 print( [ len(island) for island in mapped_islands ] )
 
 for whites in build_trial_solution(mapped_islands):
