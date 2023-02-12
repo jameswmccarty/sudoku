@@ -7,7 +7,7 @@ Rules
 4. The black cells are linked to be a continuous wall.
 5. Black cells cannot be linked to be 2×2 square or larger.
 
-Solution is currently too slow for the 10x10 examples.
+Slow, but will complete 10x10 examples.
 
 """
 
@@ -20,15 +20,14 @@ islands = [ (4,0,1), (0,1,1), (0,3,5), (4,3,2) ]
 dims = (7,7)
 islands = [ (6,1,3), (4,1,3), (3,2,3), (1,3,3), (1,5,5) ]
 
-dims = (10,10)
-islands = [ (7,0,1), (1,1,2), (5,1,3), (8,1,8), (6,4,4), (4,5,4), (3,6,1), (5,7,3), (2,7,5), (3,8,2), (6,9,1), (2,9,3) ]
-
-dims = (10,10)
-islands = [ (7,0,5), (6,1,8), (7,2,6), (2,2,2), (0,2,2), (1,3,5), (8,6,1), (9,7,4), (7,7,3), (2,7,2), (3,8,2), (2,9,2), (6,9,1) ]
-
 dims = (7,7)
 islands = [ (4,0,3), (2,1,2), (3,2,3), (6,3,1), (3,4,4), (4,5,2), (2,6,2) ]
 
+dims = (10,10)
+islands = [ (7,0,1), (1,1,2), (5,1,3), (8,1,8), (6,4,4), (4,5,4), (3,6,1), (5,7,3), (2,7,5), (3,8,2), (6,9,1), (2,9,3) ]
+
+#dims = (10,10)
+#islands = [ (7,0,5), (6,1,8), (7,2,6), (2,2,2), (0,2,2), (1,3,5), (8,6,1), (9,7,4), (7,7,3), (2,7,2), (3,8,2), (2,9,2), (6,9,1) ]
 
 # geoms holds templates of all islands shapes of size 'N'
 # (with no holes) as a set of tuples of offset points (x,y)
@@ -155,13 +154,14 @@ for x,y,s in islands:
 	trial_islands = []
 	other_islands_points = [ x for x in island_size_at_point.keys() ]
 	other_islands_points.remove((x,y))
+	orthogonal_exclusion_zone = [ (x+dx,y+dy) for dx,dy in ((0,0),(-1,0),(1,0),(0,1),(0,-1)) for x,y in other_islands_points ]
 	for offset_map in geoms[s]:
 		trial_island = []
 		for dx,dy in offset_map:
 			trial_island.append((x+dx,y+dy))
 		if not any ( x < 0 or x >= dims[0] or y < 0 or y >= dims[1] for x,y in trial_island):
 			if not any( p in blacks for p in trial_island):
-				if not any( p in other_islands_points for p in trial_island):
+				if not any( p in orthogonal_exclusion_zone for p in trial_island):
 					trial_islands.append(trial_island)
 	mapped_islands.append(trial_islands)
 
@@ -186,19 +186,21 @@ def build_trial_solution(mapped_islands,whites=set(),idx=0):
 	elif idx < len(mapped_islands):
 		for points in mapped_islands[idx]:
 			trial_whites = { point for point in whites }
-			if len(trial_whites.intersection(set(points))) == 0: # island does not overlap ones picked so far
+			# an island will not occupy a square orthogonal to another island's tile
+			exclusion_whites = { (x+dx,y+dy) for dx,dy in ((0,0),(-1,0),(1,0),(0,1),(0,-1)) for x,y in trial_whites }
+			if len(exclusion_whites.intersection(set(points))) == 0: # island does not overlap ones picked so far
 				next_map = [ x[:] for x in mapped_islands ]
 				next_map[idx] = points
 				for jdx in range(idx+1,len(mapped_islands)):
 					for entry in next_map[jdx]:
-						if len(set(entry).intersection(set(points))) > 0:
+						if len(set(entry).intersection(exclusion_whites)) > 0:
 							next_map[jdx].remove(entry)
 				if 0 not in { len(x) for x in next_map }:
 					trial_whites = trial_whites.union(points)
 					yield from build_trial_solution(next_map,trial_whites,idx+1)
 
 mapped_islands.sort(key=lambda x: len(x),reverse=True)
-#print( [ len(mapped_islands[i]) for i in range(len(mapped_islands)) ] )
+print( [ len(mapped_islands[i]) for i in range(len(mapped_islands)) ] )
 
 for whites in build_trial_solution(mapped_islands):
 	if len(whites) == whites_target_size:
