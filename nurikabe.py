@@ -112,6 +112,16 @@ def verify_ocean(blacks):
 	for x,y in blacks:
 		if not any( (x+dx,y+dy) in blacks for dx,dy in ((-1,0),(1,0),(0,1),(0,-1))):
 			return False
+	q = [ list(blacks)[0] ]
+	visited = set(((q[0]),))
+	while len(q) > 0:
+		x,y = q.pop(0)
+		for dx,dy in ((-1,0),(1,0),(0,1),(0,-1)):
+			if (x+dx,y+dy) in blacks and (x+dx,y+dy) not in visited:
+				visited.add((x+dx,y+dy))
+				q.append((x+dx,y+dy))
+	if visited != blacks:
+		return False		
 	return True
 
 # for an island of a size, at a given point, generate a set of its possible
