@@ -7,9 +7,11 @@ Rules
 4. The black cells are linked to be a continuous wall.
 5. Black cells cannot be linked to be 2×2 square or larger.
 
-Can complete 10x10 in a around a minute with pypy3.  Still too slow for 12x12 and larger.
+Working well on sizes up to 12x12, but running into memory use issues for larger sizes.
 
 """
+
+from collections import deque
 
 # A puzzle is its dimensions (x,y) and islands
 # islands shown as (x,y,size) with a zero index
@@ -17,8 +19,8 @@ Can complete 10x10 in a around a minute with pypy3.  Still too slow for 12x12 an
 #dims = (5,5)
 #islands = [ (4,0,1), (0,1,1), (0,3,5), (4,3,2) ]
 
-dims = (7,7)
-islands = [ (6,1,3), (4,1,3), (3,2,3), (1,3,3), (1,5,5) ]
+#dims = (7,7)
+#islands = [ (6,1,3), (4,1,3), (3,2,3), (1,3,3), (1,5,5) ]
 
 #dims = (7,7)
 #islands = [ (4,0,3), (2,1,2), (3,2,3), (6,3,1), (3,4,4), (4,5,2), (2,6,2) ]
@@ -29,8 +31,8 @@ islands = [ (6,1,3), (4,1,3), (3,2,3), (1,3,3), (1,5,5) ]
 #dims = (10,10)
 #islands = [ (7,0,5), (6,1,8), (7,2,6), (2,2,2), (0,2,2), (1,3,5), (8,6,1), (9,7,4), (7,7,3), (2,7,2), (3,8,2), (2,9,2), (6,9,1) ]
 
-#dims = (12,12)
-#islands = [ (2,0,5), (5,1,1), (3,1,4), (7,2,5), (8,3,4), (1,4,8), (6,5,5), (3,5,3), (9,6,3), (7,6,1), (5,6,6), (10,7,1), (3,8,1), (4,9,2), (8,10,1), (6,10,2), (9,11,4) ]
+dims = (12,12)
+islands = [ (2,0,5), (5,1,1), (3,1,4), (7,2,5), (8,3,4), (1,4,8), (6,5,5), (3,5,3), (9,6,3), (7,6,1), (5,6,6), (10,7,1), (3,8,1), (4,9,2), (8,10,1), (6,10,2), (9,11,4) ]
 
 #dims = (15,15)
 #islands = [ (0,0,1), (8,0,1), (2,1,1), (7,1,1), (9,1,1), (13,1,1), (5,2,10), (11,2,2), (8,3,9), (12,3,2), (7,4,1), (8,5,1), (5,5,2), (2,5,2), (0,5,2), (12,7,1), (10,7,2), (4,7,2), (2,7,2), (14,8,1), (12,9,2), (9,9,2), (6,9,4), (7,10,3), (10,11,4), (6,11,10), (2,11,2), (9,12,3), (3,12,2), (12,13,2), (7,13,1), (5,13,1), (1,13,1), (6,14,1) ]
@@ -104,11 +106,17 @@ def find_island_size(point, blacks):
 	return len(seen)
 
 # verify there are no 2x2 squares in a set of black points
-# verify there are no black cells not connected to another cell
-def verify_ocean(blacks):
+def no2by2(blacks):
 	for x,y in blacks:
 		if all( (x+dx,y+dy) in blacks for dx,dy in ((0,1),(1,0),(1,1)) ):
 			return False
+	return True
+
+# verify there are no 2x2 squares in a set of black points
+# verify there are no black cells not connected to another cell
+def verify_ocean(blacks):
+	if not no2by2(blacks):
+		return False
 	for x,y in blacks:
 		if not any( (x+dx,y+dy) in blacks for dx,dy in ((-1,0),(1,0),(0,1),(0,-1))):
 			return False
@@ -121,18 +129,28 @@ def verify_ocean(blacks):
 				visited.add((x+dx,y+dy))
 				q.append((x+dx,y+dy))
 	if visited != blacks:
-		return False		
+		return False
 	return True
+
+# find a set of all points not included in a list of possible islands
+def not_in_cover(poss_map):
+	must_be_black = cover_set.copy()
+	for i_set in poss_map:
+		for i in i_set:
+			for p in i:
+				must_be_black.discard(p)
+	return must_be_black
 
 # for an island of a size, at a given point, generate a set of its possible
 # shapes, which will exclude areas it cannot occupy based on size of the
 # board, or known black cells or exclusion stand-offs to other islands.
 def gen_poss_island_shapes(island,exclusions):
 	x,y,size = island
-	q = [ ({(x,y)},set()) ]
+	q = deque()
+	q.append( ({(x,y)},set()) )
 	offsets = set()
 	while len(q) > 0:
-		shape,explored = q.pop(0)
+		shape,explored = q.popleft()
 		if len(shape) == size and not has_hole(shape):
 			shape = tuple(sorted(shape))
 			offsets.add(shape)
@@ -179,7 +197,8 @@ while mapped_size != sum( [ len(x) for x in mapped_islands ] ):
 							if len(set(orthogonal_exclusion_zone).intersection(set(entry_b))) > 0:
 								mapped_islands[j].remove(entry_b)
 
-def build_trial_solution(mapped_islands,whites=set(),idx=0):
+
+def build_trial_solution(mapped_islands,whites=set(),black=set(),idx=0):
 	if idx == len(mapped_islands):
 		yield whites.copy()
 	elif idx < len(mapped_islands):
@@ -189,22 +208,23 @@ def build_trial_solution(mapped_islands,whites=set(),idx=0):
 			exclusion_whites = { (x+dx,y+dy) for dx,dy in ((0,0),(-1,0),(1,0),(0,1),(0,-1)) for x,y in trial_whites }
 			if len(exclusion_whites.intersection(set(points))) == 0: # island does not overlap ones picked so far
 				next_map = [ x[:] for x in mapped_islands ]
-				next_map[idx] = points
+				next_map[idx] = [ points ]
 				for jdx in range(idx+1,len(mapped_islands)):
 					for entry in next_map[jdx]:
 						if len(set(entry).intersection(exclusion_whites)) > 0:
 							next_map[jdx].remove(entry)
-				if 0 not in { len(x) for x in next_map }:
-					trial_whites = trial_whites.union(points)
-					yield from build_trial_solution(next_map,trial_whites,idx+1)
+				new_blacks = not_in_cover(next_map) - trial_whites
+				if no2by2(black.union(new_blacks)):
+					if 0 not in { len(x) for x in next_map }:
+						trial_whites = trial_whites.union(points)
+						yield from build_trial_solution(next_map,trial_whites,black.union(new_blacks),idx+1)
 
 #mapped_islands.sort(key=lambda x: len(x)) # sorting does not appear to improve the speed of pruning
 print( [ len(island) for island in mapped_islands ] )
 
-for whites in build_trial_solution(mapped_islands):
+for whites in build_trial_solution(mapped_islands,set(),blacks,0):
 	if len(whites) == whites_target_size:
 		trial_blacks = cover_set - whites
 		if verify_ocean(trial_blacks) and all( find_island_size(p,trial_blacks) == island_size_at_point[p] for p in island_size_at_point.keys() ):
 			pretty_print(whites)
 			break # assume unique solution, and break
-
