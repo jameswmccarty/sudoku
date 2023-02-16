@@ -7,8 +7,6 @@ Rules
 4. The black cells are linked to be a continuous wall.
 5. Black cells cannot be linked to be 2×2 square or larger.
 
-Working well on sizes up to 12x12, but running into memory use issues for larger sizes.
-
 """
 
 from collections import deque
@@ -155,11 +153,13 @@ def gen_poss_island_shapes(island,exclusions):
 			shape = tuple(sorted(shape))
 			offsets.add(shape)
 		elif len(shape) < size:
+			seen = set()
 			for i,j in shape-explored:
 				for dx,dy in ((-1,0),(1,0),(0,1),(0,-1)):
-					if (i+dx,j+dy) not in shape and i+dx >= 0 and i+dx < dims[0] and j+dy >= 0 and j+dy < dims[1] and (i+dx,j+dy) not in exclusions:
+					if (i+dx,j+dy) not in shape and i+dx >= 0 and i+dx < dims[0] and j+dy >= 0 and j+dy < dims[1] and (i+dx,j+dy) not in exclusions and (i+dx,j+dy) not in seen:
 						next_shape = shape.copy()
 						next_shape.add((i+dx,j+dy))
+						seen.add((i+dx,j+dy))
 						q.append((next_shape,explored.union(set((i,j)))))
 	return offsets
 
